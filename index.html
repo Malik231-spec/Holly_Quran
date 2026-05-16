@@ -1,0 +1,261 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Al Quran Kareem</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Inter:wght@300;400;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, sans-serif;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .font-quran {
+      font-family: 'Amiri Quran', serif;
+      line-height: 2.2;
+    }
+
+    .font-urdu {
+      font-family: 'Noto Nastaliq Urdu', serif;
+      line-height: 2.5;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .gold-gradient {
+      background: linear-gradient(135deg,#d4af37 0%,#f1d592 50%,#d4af37 100%);
+    }
+
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+function App() {
+
+  const [surahs, setSurahs] = useState([]);
+  const [filteredSurahs, setFilteredSurahs] = useState([]);
+  const [currentSurah, setCurrentSurah] = useState(1);
+  const [surahDetails, setSurahDetails] = useState(null);
+  const [ayahs, setAyahs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState('light');
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
+
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    fetch('https://api.alquran.cloud/v1/surah')
+      .then(res => res.json())
+      .then(data => {
+        setSurahs(data.data);
+        setFilteredSurahs(data.data);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadSurah(currentSurah);
+  }, [currentSurah]);
+
+  async function loadSurah(number) {
+    setLoading(true);
+
+    const arabic = await fetch(`https://api.alquran.cloud/v1/surah/${number}/quran-uthmani`).then(r => r.json());
+
+    const urdu = await fetch(`https://api.alquran.cloud/v1/surah/${number}/ur.jalandhry`).then(r => r.json());
+
+    const english = await fetch(`https://api.alquran.cloud/v1/surah/${number}/en.asad`).then(r => r.json());
+
+    const audio = await fetch(`https://api.alquran.cloud/v1/surah/${number}/ar.alafasy`).then(r => r.json());
+
+    setSurahDetails(arabic.data);
+
+    const combined = arabic.data.ayahs.map((a, i) => ({
+      arabic: a.text,
+      urdu: urdu.data.ayahs[i].text,
+      english: english.data.ayahs[i].text,
+      audio: audio.data.ayahs[i].audio,
+      number: a.numberInSurah
+    }));
+
+    setAyahs(combined);
+    setLoading(false);
+  }
+
+  function playAudio(src) {
+    audioRef.current.src = src;
+    audioRef.current.play();
+  }
+
+  function copyAyah(text) {
+    navigator.clipboard.writeText(text);
+    alert('Ayah copied');
+  }
+
+  return (
+    <div className={`flex h-screen ${theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}`}>
+
+      <audio ref={audioRef}></audio>
+
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} fixed md:relative z-50 md:z-0 w-[85%] sm:w-80 h-full transition-all duration-300 border-r overflow-y-auto hide-scrollbar ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+
+        <div className="p-5 border-b">
+          <h1 className="text-2xl font-bold text-emerald-600">
+            Al Quran Kareem
+          </h1>
+
+          <input
+            type="text"
+            placeholder="Search Surah"
+            onChange={(e)=>{
+              const q = e.target.value.toLowerCase();
+              setFilteredSurahs(
+                surahs.filter(s =>
+                  s.englishName.toLowerCase().includes(q)
+                )
+              )
+            }}
+            className="mt-4 w-full px-4 py-3 rounded-xl border outline-none"
+          />
+        </div>
+
+        <div className="p-3 space-y-2">
+          {filteredSurahs.map((s)=>(
+            <button
+              key={s.number}
+              onClick={()=>{
+                setCurrentSurah(s.number);
+                if(window.innerWidth < 768){
+                  setSidebarOpen(false);
+                }
+              }}
+              className={`w-full p-4 rounded-2xl text-left transition-all ${currentSurah===s.number ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-bold">{s.englishName}</p>
+                  <p className="text-xs opacity-70">{s.numberOfAyahs} Ayahs</p>
+                </div>
+                <p className="font-quran text-xl">{s.name}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto hide-scrollbar p-8">
+
+        <div className="flex flex-col sm:flex-row gap-5 sm:gap-0 justify-between items-start sm:items-center mb-10">
+
+          <button
+            onClick={()=>setSidebarOpen(!sidebarOpen)}
+            className="md:hidden px-5 py-3 rounded-2xl bg-emerald-500 text-white font-bold"
+          >
+            ☰ Menu
+          </button>
+          <div>
+            <h1 className="text-4xl font-black text-emerald-600">
+              {surahDetails?.englishName}
+            </h1>
+            <p className="text-slate-400 mt-2">
+              {surahDetails?.englishNameTranslation}
+            </p>
+          </div>
+
+          <button
+            onClick={()=>setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="px-5 py-3 rounded-2xl bg-emerald-500 text-white font-bold"
+          >
+            Toggle Theme
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center mt-40">
+            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-slate-400">Loading Quran...</p>
+          </div>
+        ) : (
+
+          <div className="space-y-10">
+
+            {ayahs.map((ayah, idx)=>(
+              <div
+                key={idx}
+                className={`rounded-3xl p-8 border shadow-xl ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
+              >
+
+                <div className="flex justify-between items-center mb-8">
+                  <span className="px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold">
+                    {currentSurah}:{ayah.number}
+                  </span>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={()=>playAudio(ayah.audio)}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 text-white"
+                    >
+                      ▶ Play
+                    </button>
+
+                    <button
+                      onClick={()=>copyAyah(ayah.arabic)}
+                      className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div dir="rtl" className="font-quran text-3xl sm:text-4xl md:text-5xl text-right leading-[2.4] text-emerald-600 mb-10">
+                  {ayah.arabic}
+                </div>
+
+                <div dir="rtl" className="font-urdu text-xl sm:text-2xl md:text-3xl text-right leading-loose text-slate-500 mb-8">
+                  {ayah.urdu}
+                </div>
+
+                <div className="text-sm sm:text-base md:text-lg italic text-slate-400 leading-relaxed">
+                  {ayah.english}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+</script>
+</body>
+</html>
